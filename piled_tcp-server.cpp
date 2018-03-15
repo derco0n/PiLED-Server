@@ -1,17 +1,18 @@
 /*
 Kleiner TCP-Server 
-Diese Software stellt einen TCP-Server dar, welcher zur Ausführung auf embedded-systemen wie dem Raspberry-Pi gedacht ist.
+Diese Software, ursprüng 2015 geschrieben, stellt einen TCP-Server dar, welcher zur Ausführung auf embedded-systemen wie dem Raspberry-Pi gedacht ist.
 -Die vorliegende Version wurde angepasst um LED's über die GPIO-Pins des Raspberry-Pi zu steuern. (D. Marx, 28.02.2018)
 
 Dieser Server nutzt die c++_Threadbibliothek um Multithreading (pro client ein Thread) zu ermöglichen und die Bibliothek WiringPi (http://wiringpi.com/) zur Ansteuerung der GPIO-Pins des RaspberryPi.
 
 Compile with:  
 	old g++:
-		g++ -std=c++0x ./dmarxtcp.cpp -lpthread -lwiringPi -o dmarxtcp
+		g++ -std=c++0x ./piled_tcp-server.cpp -lpthread -lwiringPi -o dmarxtcp
 	newer g++ 5.3.0:
-		g++ -std=c++17 ./dmarxtcp.cpp -lpthread -lwiringPi -o dmarxtcp
+		g++ -std=c++17 ./piled_tcp-server.cpp -lpthread -lwiringPi -o dmarxtcp
 
 Autor: D. Marx
+https://github.com/derco0n/PiLED-Server
 */
 
 #include <iostream>
@@ -43,7 +44,7 @@ int socket_desc, new_socket, c, *new_sock;
 int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
 //int connections[maxclients]; //Array of sockets
 
-const double myversion=0.24; //Diese Programmversion
+const double myversion=0.25; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
 void *connection_handler(void *);
 int connection_id;
@@ -68,6 +69,7 @@ void closeSocket(int fd) {      // *not* the Windows closesocket()
             fprintf(stderr,"shutdown");
       if (close(fd) < 0) // finally call close()
          fprintf(stderr,"close");
+	  
    }
 }
 
@@ -578,9 +580,13 @@ void *connection_handler(void *socket_desc)
     }
          
     //Free the socket pointer
+	
 	close(sock);
+	//closeSocket(sock);
     free(socket_desc);
-     
+    
+	
+	
 	curclicnt-=1; //Clientverbindungen um eine reduzieren
 	
 	fprintf(stdout,"%d active clients.\n",curclicnt);
