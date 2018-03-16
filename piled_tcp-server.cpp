@@ -42,9 +42,9 @@ bool shuttingdown=false; //Wenn true werden alle offenen Clientverbindungen getr
 int socket_desc, new_socket, c, *new_sock;
 
 int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
-//int connections[maxclients]; //Array of sockets
+std::string connections[maxclients]; //Array of connectionnames
 
-const double myversion=0.25; //Diese Programmversion
+const double myversion=0.27; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
 void *connection_handler(void *);
 int connection_id;
@@ -69,7 +69,6 @@ void closeSocket(int fd) {      // *not* the Windows closesocket()
             fprintf(stderr,"shutdown");
       if (close(fd) < 0) // finally call close()
          fprintf(stderr,"close");
-	  
    }
 }
 
@@ -247,13 +246,13 @@ int main(int argc, char *argv[])
 
 	if (geteuid() != 0)
 	{ //Not root
-		fprintf(stdout,"\nRoot wird zur Ausführung benötigt. Bitte als root ausführen.\n Please run as root!");
+		fprintf(stdout,"\nRoot ist needed to run this programm.\nPlease run as root!\n");
 		writelog("Program aborted due to failing root privileges.\n"); //Logeintrag machen
 		return -2;
 	}
 	else
 	{//root
-		fprintf(stdout,"\nWilkommen bei dmarxtcp: Version %0.2f\n", myversion);
+		fprintf(stdout,"\nWelcome to dmarxtcp: Version %0.2f\n==================================\n\nhttps://github.com/derco0n/PiLED-Server\n\n", myversion);
 		/*
 		//debug
 		std::cout << argv[1];
@@ -372,11 +371,18 @@ int main(int argc, char *argv[])
 				
 				std::string clientip=inet_ntoa(client.sin_addr);
 				int clientport=(int)ntohs(client.sin_port);
-				std::string message ="New Connection (ID: "+std::to_string(curclicnt)+") from "+clientip+":"+std::to_string(clientport)+" accepted.\n";			
+				std::string clientconn=clientip+":"+std::to_string(clientport);
+				std::string message ="New Connection from "+clientconn+" accepted.\n";		
+
+				//DEBUG
+				//fprintf(stdout, "1) Curclicnt: %d\n",curclicnt);
+				//fprintf(stdout, "1) con_content at index %d: %s\n",curclicnt, connections[curclicnt].c_str());	
+				//DEBUG ENDE
 				
 				fprintf(stdout,message.c_str());			
-				writelog(message); //Logeintrag machen
-
+				writelog(message.c_str()); //Logeintrag machen
+				connections[curclicnt]=clientconn;
+				
 				if (pthread_create(&sniffer_thread, NULL, connection_handler, (void*)new_sock/*socket*/) < 0)
 				/*
 				struct hathrargs args;
@@ -388,13 +394,12 @@ int main(int argc, char *argv[])
 					fprintf(stderr,"could not create thread.\n");
 					writelog("Error: could not create thread.\n"); //Logeintrag machen
 					return 1;
-				}		
-							
-				curclicnt+=1;
+				}
 				
-				fprintf(stdout,"Thread-Handler assigned. %d active clients.\n",curclicnt);
+				fprintf(stdout,"Thread-Handler assigned. %d active clients.\n",curclicnt+1);
 				writelog("Thread-Handler assigned.\n"); //Logeintrag machen
 				
+				curclicnt+=1;
 				//pthread_join( sniffer_thread , NULL); //Join the thread , so that we dont terminate before the thread
 			}
 			else {
@@ -418,7 +423,6 @@ int main(int argc, char *argv[])
 				clssrvsock();
 				break; //Schleife abbrechen.
 			}
-			
 		}
 
 		if (new_socket < 0)
@@ -437,14 +441,13 @@ int main(int argc, char *argv[])
 		digitalWrite (pinblue, false);		
 		*/
 		
-		
 		return 0;
 	} //<= comment in, if root is needed
 }
 
 
 //int doStuff(char code[1024], int connid)
-int doStuff(char code[1024])
+int doStuff(char code[1024], std::string clientconn)
 {
 	int status = -1;
 	if (
@@ -462,7 +465,7 @@ int doStuff(char code[1024])
 		
 		std::string msg="";
 		//msg += "Received new LED settings from connection "+std::to_string(connid)+". Code: \"" + std::string(code).substr(0,3) + std::string("\"\n");
-		msg += "Received new LED settings. Code: \"" + std::string(code).substr(0,3) + std::string("\"\n");
+		msg += "Received new LED settings from "+clientconn+" -> Code: \"" + std::string(code).substr(0,3) + std::string("\"\n");
 		
 		fprintf(stdout,msg.c_str());
 		writelog(msg.c_str());
@@ -488,7 +491,6 @@ int doStuff(char code[1024])
 	{
 		status=1; //exitcode
 	}
-	
 	return status;
 }
 
@@ -511,6 +513,18 @@ void *connection_handler(void *socket_desc)
 	
 	//struct myargs *args = arguments;
 	
+	int myconnid=curclicnt; //Diese Vebindungsid
+	std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
+	
+	/*
+	//DEBUG
+	fprintf(stdout, "Curclicnt: %d\n",curclicnt);
+	fprintf(stdout, "con_content at index %d: %s\n",curclicnt, connections[curclicnt].c_str());
+	fprintf(stdout, "myconnid: %d\n",myconnid);
+	fprintf(stdout, "clientconn %s\n",clientconn.c_str());
+	//DEBUG ENDE
+	*/
+	
     //Get the socket descriptor
     int sock = *(int*)socket_desc;
 	//int sock = args->socket;
@@ -527,6 +541,12 @@ void *connection_handler(void *socket_desc)
     //Send some messages to the client
     message = "LED-Control ready. Please tell me what to do.\n";
     write(sock , message.c_str() , strlen(message.c_str()));
+	
+	/*
+	std::string cip=inet_ntoa(socket_desc.sin_addr);
+	int cport=(int)ntohs(socket_desc.sin_port);
+	std::string clientconn=cip+":"+std::to_string(cport);
+	*/
  
 	while(shuttingdown==false && (read_size = recv(sock , client_message , 1024 , 0)) > 0 ) //Solange größer 0, besteht die Verbindung zum Client
     {
@@ -535,13 +555,12 @@ void *connection_handler(void *socket_desc)
 		std::string debug="Debug-Inner: Shuttingdown="+BoolToString(shuttingdown)+"\n";
 		fprintf(stdout, debug.c_str());
 		//DEBUG Ende
-		*/
-		
+		*/		
 		//Print out the recieved message				
 		//fprintf(stdout, client_message);		
-		
 		//int retval=doStuff(client_message, connid);
-		int retval=doStuff(client_message);
+		
+		int retval=doStuff(client_message, clientconn);
 		if (retval==0){ 
 		message = "command ok\n";
 		}
@@ -560,8 +579,9 @@ void *connection_handler(void *socket_desc)
 		if (retval==1 || shuttingdown==true){
 			//Close connection 
 			shutdown(sock, SHUT_RDWR);	
-			fprintf(stdout,"connection closed by server.\n");
-			writelog("connection closed by server.\n");	
+			std::string logmsg ="connection ("+clientconn+") closed by server.\n";				
+			fprintf(stdout,logmsg.c_str());			
+			writelog(logmsg.c_str()); //Logeintrag machen			
 			delay(100); //wait 100ms
 			break; //Aborts the while...
 		}
@@ -569,14 +589,16 @@ void *connection_handler(void *socket_desc)
      
     if(read_size == 0)//Client hat die Verbindung getrennt
     {
-        fprintf(stdout,"connection closed by Client\n");
-		writelog("connection closed by Client\n");		
+		std::string logmsg ="connection ("+clientconn+") closed by client.\n";				
+		fprintf(stdout,logmsg.c_str());	
+        writelog(logmsg.c_str()); //Logeintrag machen		
         //fflush(stdout);
     }
     else if(read_size == -1) //Verbindung wurde unterbrochen.
     {
-        fprintf(stderr,"connection aborted\n");
-		writelog("connection aborted\n");
+        std::string logmsg ="connection ("+clientconn+") aborted.\n";				
+		fprintf(stdout,logmsg.c_str());	
+        writelog(logmsg.c_str()); //Logeintrag machen		
     }
          
     //Free the socket pointer
@@ -584,8 +606,6 @@ void *connection_handler(void *socket_desc)
 	close(sock);
 	//closeSocket(sock);
     free(socket_desc);
-    
-	
 	
 	curclicnt-=1; //Clientverbindungen um eine reduzieren
 	
