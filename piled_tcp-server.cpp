@@ -513,6 +513,10 @@ void *connection_handler(void *socket_desc)
 	
 	//struct myargs *args = arguments;
 	
+	//Possible race-condition: 
+	//what happens if connectionstring is not written to array when fetching value?
+	//what happens if curclicnt is already increased when coming to this point?
+	
 	int myconnid=curclicnt; //Diese Vebindungsid
 	std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
 	
