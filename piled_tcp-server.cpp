@@ -41,7 +41,7 @@ int socket_desc, new_socket, c, *new_sock;
 int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
 std::string connections[maxclients]; //Array of connectionnames
 
-const double myversion=0.281; //Diese Programmversion
+const double myversion=0.282; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
 void *connection_handler(void *);
 int connection_id;
@@ -486,6 +486,7 @@ int doStuff(char code[1024], std::string clientconn)
 		msg += "Received unknown command from "+clientconn+" -> Command: \"" + std::string(code) + std::string("\"\n");		
 		fprintf(stdout,msg.c_str());
 		writelog(msg.c_str());
+		//return is still -1;
 	}
 	return status;
 }
@@ -571,26 +572,25 @@ void *connection_handler(void *socket_desc)
 		else if (retval==1 /*Client sent "exit"*/|| shuttingdown==true /*Server was aborted via "CTRL-C"*/){
 			//Connection should be closed
 			//Free the socket pointer
-			message = "good bye\n";	
-			write(sock, message.c_str(), strlen(message.c_str())); //Send message to the client
+			message = "good bye\n";				
 		}
 		else {			
 			cmderror++; //increase Commanderror-counter
 			if (cmderror>=maxcmderror){
-				message = "Maximum command error count reached. Closing Connection.\n";
-				write(sock, message.c_str(), strlen(message.c_str())); //Send message to the client
-				writelog(message.c_str());
-				
+				std::string logmessage = "Maximum command error count reached. Closing Connection.\n";				
+				writelog(logmessage.c_str());				
 				//Closemessage
-				message = "good bye\n";	
-				write(sock, message.c_str(), strlen(message.c_str())); //Send message to the client
+				message = "good bye\n";
+				
 			}
 			else {
-				message = "Command error (Count: "+std::to_string(cmderror)+")\n";
-				write(sock, message.c_str(), strlen(message.c_str())); //Send message to the client
+				//Errormessage
+				message = "Command error (Count: "+std::to_string(cmderror)+")\n";				
 				writelog(message.c_str());
 			}
 		}
+		
+		write(sock, message.c_str(), strlen(message.c_str())); //Send message to the client
 				
 		if (cmderror>=maxcmderror /*Maximum command errors reached*/|| retval==1 /*Client sent "exit"*/|| shuttingdown==true /*Server was aborted via "CTRL-C"*/){
 			//Close connection 
