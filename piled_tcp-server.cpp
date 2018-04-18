@@ -27,7 +27,7 @@ https://github.com/derco0n/PiLED-Server
 #include <pthread.h> //for threading , link with lpthread
 #include <ctime>
 #include <time.h>
-#include <wiringPi.h> //using wiringpi to control raspberry-pi's gpio pins
+//#include <wiringPi.h> //using wiringpi to control raspberry-pi's gpio pins //WIEDER EINKOMMENTIEREN!
 
 //Konstanten und Variablen
 int pinred=0;
@@ -41,7 +41,7 @@ int socket_desc, new_socket, c, *new_sock;
 int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
 std::string connections[maxclients]; //Array of connectionnames
 
-const double myversion=0.282; //Diese Programmversion
+const double myversion=0.3; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
 void *connection_handler(void *);
 int connection_id;
@@ -182,7 +182,8 @@ void printHelp(){
 }
 
 void clssrvsock(){
-	delay(1500);
+	//delay(1500);
+	usleep(1500);
 	try {
 		closeSocket(socket_desc);
 		//close(socket_desc);
@@ -282,27 +283,32 @@ int main(int argc, char *argv[])
 		std::string message;
 		
 		//GPIO-Pins initialisieren
-		wiringPiSetup () ;
-		pinMode (pinred, OUTPUT) ;
-		pinMode (pingreen, OUTPUT) ;
-		pinMode (pinblue, OUTPUT) ;
+		//wiringPiSetup (); //WIEDER EINKOMMENTIEREN!
+		//pinMode (pinred, OUTPUT) ; //WIEDER EINKOMMENTIEREN!
+		//pinMode (pingreen, OUTPUT) ; //WIEDER EINKOMMENTIEREN!
+		//pinMode (pinblue, OUTPUT) ;//WIEDER EINKOMMENTIEREN!
 		
 		//Pins testen
 		fprintf(stdout,"Testing Pin for RED (%i):\n",pinred);
-		digitalWrite (pinred, true);
-		delay (200) ;
+		//digitalWrite (pinred, true); //WIEDER EINKOMMENTIEREN!
+		//delay (200) ;
+		usleep(200) ;
 		fprintf(stdout,"Testing Pin for GREEN (%i):\n",pingreen);
-		digitalWrite (pingreen, true);
-		delay (200) ;
+		//digitalWrite (pingreen, true); //WIEDER EINKOMMENTIEREN!
+		//delay (200) ;
+		usleep(200) ;
 		fprintf(stdout,"Testing Pin for BLUE (%i):\n",pinblue);
-		digitalWrite (pinblue, true);
-		delay (1200) ;
+		//digitalWrite (pinblue, true); //WIEDER EINKOMMENTIEREN!
+		//delay (1200);
+		usleep(1200);
 		
-		digitalWrite (pinred, false);	
-		delay (200) ;
-		digitalWrite (pingreen, false);	
-		delay (200) ;
-		digitalWrite (pinblue, false);
+		//digitalWrite (pinred, false);	//WIEDER EINKOMMENTIEREN!
+		//delay (200) 
+		usleep(200);
+		//digitalWrite (pingreen, false);	//WIEDER EINKOMMENTIEREN!
+		//delay (200);
+		usleep(200);
+		//digitalWrite (pinblue, false); //WIEDER EINKOMMENTIEREN!
 
 		std::string startmsg="Program started. Version is "+std::to_string(myversion)+"\n";
 		writelog(startmsg.c_str()); //Logeintrag machen
@@ -382,17 +388,20 @@ int main(int argc, char *argv[])
 				args.connid=curclicnt;
 				*/
 				//if (pthread_create(&sniffer_thread, NULL, connection_handler, (void*)args) < 0)
-				{
+				{//Thread konnte nicht erstellt werden
 					fprintf(stderr,"could not create thread.\n");
 					writelog("Error: could not create thread.\n"); //Logeintrag machen
 					return 1;
 				}
+				else {
+					//Thread wurde erstellt
+					curclicnt+=1;				
+					message="Thread-Handler assigned. "+std::to_string(curclicnt)+" active clients.\n";
+					fprintf(stdout,message.c_str());
+					writelog(message.c_str()); //Logeintrag machen
+					//pthread_join( sniffer_thread , NULL); //Join the thread , so that we dont terminate before the thread
+				}
 				
-				fprintf(stdout,"Thread-Handler assigned. %d active clients.\n",curclicnt+1);
-				writelog("Thread-Handler assigned.\n"); //Logeintrag machen
-				
-				curclicnt+=1;
-				//pthread_join( sniffer_thread , NULL); //Join the thread , so that we dont terminate before the thread
 			}
 			else {
 				//Maxclients erreicht
@@ -411,7 +420,8 @@ int main(int argc, char *argv[])
 			//DEBUG Ende
 			*/
 			if (shuttingdown==true){
-				delay (500);
+				//delay (500);
+				usleep(500);
 				clssrvsock();
 				break; //Schleife abbrechen.
 			}
@@ -462,11 +472,12 @@ int doStuff(char code[1024], std::string clientconn)
 		fprintf(stdout,msg.c_str());
 		writelog(msg.c_str());
 		
-		delay(30); //30ms warten um das Schaltvermögen der Relais nicht auszureizen
+		//delay(30); //30ms warten um das Schaltvermögen der Relais nicht auszureizen
+		usleep(30);
 		//LEDs setzen	
-		digitalWrite (pinred, redstate);
-		digitalWrite (pingreen, greenstate);
-		digitalWrite (pinblue, bluestate);	
+		//digitalWrite (pinred, redstate);//WIEDER EINKOMMENTIEREN!
+		//digitalWrite (pingreen, greenstate);//WIEDER EINKOMMENTIEREN!
+		//digitalWrite (pinblue, bluestate);	//WIEDER EINKOMMENTIEREN!
 		
 		status = 0; //exitcode
 		}
@@ -494,9 +505,10 @@ int doStuff(char code[1024], std::string clientconn)
 
 void lightUpPin(int pinnumber, int period){
 	//Setzt den Status eines pins fuer einen gewissen Zeitraum auf 1 und anschließend wieder auf null
-	digitalWrite (pinnumber, true);
-	delay(period);
-	digitalWrite (pinnumber, false);
+	//digitalWrite (pinnumber, true); //WIEDER EINKOMMENTIEREN!
+	//delay(period);
+	usleep(period);
+	//digitalWrite (pinnumber, false);//WIEDER EINKOMMENTIEREN!
 }
 
 
@@ -514,8 +526,12 @@ void *connection_handler(void *socket_desc)
 	//what happens if connectionstring is not written to array when fetching value?
 	//what happens if curclicnt is already increased when coming to this point?
 	
-	int myconnid=curclicnt; //Diese Vebindungsid
-	std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
+	int myconnid=curclicnt; //Diese Vebindungsid	
+	//std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
+	std::string clientconn="Foooo"; //DEBUG
+	
+	std::string logmsg="Handler for connection-id "+std::to_string(myconnid)+" started...\n";
+	writelog(logmsg.c_str());
 	
 	/*
 	//DEBUG
@@ -577,7 +593,7 @@ void *connection_handler(void *socket_desc)
 		else {			
 			cmderror++; //increase Commanderror-counter
 			if (cmderror>=maxcmderror){
-				std::string logmessage = "Maximum command error count reached. Closing Connection.\n";				
+				std::string logmessage = "Maximum command error count reached. Closing connection.\n";				
 				writelog(logmessage.c_str());				
 				//Closemessage
 				message = "good bye\n";
@@ -585,7 +601,7 @@ void *connection_handler(void *socket_desc)
 			}
 			else {
 				//Errormessage
-				message = "Command error (Count: "+std::to_string(cmderror)+")\n";				
+				message = "command error (count: "+std::to_string(cmderror)+")\n";				
 				writelog(message.c_str());
 			}
 		}
@@ -597,8 +613,9 @@ void *connection_handler(void *socket_desc)
 			shutdown(sock, SHUT_RDWR);	
 			std::string logmsg ="connection ("+clientconn+") closed by server.\n";				
 			fprintf(stdout,logmsg.c_str());			
-			writelog(logmsg.c_str()); //Logeintrag machen			
-			delay(100); //wait 100ms
+			writelog(logmsg.c_str()); //make logentry			
+			//delay(100); //wait 100ms
+			usleep(100);
 			break; //Aborts the while...
 		}
     }
@@ -619,11 +636,15 @@ void *connection_handler(void *socket_desc)
          
     //Free the socket pointer
 	
+	logmsg="Handler for connection-id "+std::to_string(myconnid)+" stopping...\n";
+	writelog(logmsg.c_str());
+	
+	
 	close(sock);
 	//closeSocket(sock);
-    free(socket_desc);
+    free(socket_desc);	
 	
-	curclicnt-=1; //reduce active clientconnectioncounter by 1
+	curclicnt=curclicnt-1; //reduce active clientconnectioncounter by 1
 	
 	std::string clientsmsg=std::to_string(curclicnt)+" active clients.\n";
 	//fprintf(stdout,"%d active clients.\n",curclicnt);
