@@ -41,7 +41,7 @@ int socket_desc, new_socket, c, *new_sock;
 int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
 std::string connections[maxclients]; //Array of connectionnames
 
-const double myversion=0.3; //Diese Programmversion
+const double myversion=0.31; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
 void *connection_handler(void *);
 int connection_id;
@@ -354,13 +354,29 @@ int main(int argc, char *argv[])
 		fprintf(stdout,"Waiting for incoming connections...\n");
 		writelog("Waiting for incoming connections.\n"); //Logeintrag machen
 		c = sizeof(struct sockaddr_in);
+		
+		int conatmpt=0; //DEBUG
 
 		while (shuttingdown==false && (new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c)))
 		{//Server fährt gerade nicht herunter, die maximale Clientanzahl ist noch nicht erreicht und die eingehende Verbindung wurde akzeptiert
 			
+			std::string message="";
+			
 			pthread_t sniffer_thread; //neuen Thread deklarieren
 			new_sock = (int*)malloc(1);
 			*new_sock = new_socket;
+			
+			if (!new_sock){
+				//Kein Speicher addressiert
+				message = "Memory for new Connection could not be allocated!\n";
+				fprintf(stdout,message.c_str());			
+				writelog(message.c_str()); //Logeintrag machen
+				break; //Schleife abbrechen
+			}
+			
+			
+			
+			conatmpt++;	
 				
 			if (curclicnt<maxclients){	
 				//Reply to the client
@@ -370,7 +386,9 @@ int main(int argc, char *argv[])
 				std::string clientip=inet_ntoa(client.sin_addr);
 				int clientport=(int)ntohs(client.sin_port);
 				std::string clientconn=clientip+":"+std::to_string(clientport);
-				std::string message ="New Connection from "+clientconn+" accepted.\n";		
+				message ="New Connection from "+clientconn+" accepted.\n";		
+				
+				message +="DEBUG: "+std::to_string(conatmpt)+" attempts.\n";	
 
 				//DEBUG
 				//fprintf(stdout, "1) Curclicnt: %d\n",curclicnt);
@@ -381,7 +399,9 @@ int main(int argc, char *argv[])
 				writelog(message.c_str()); //Logeintrag machen
 				connections[curclicnt]=clientconn;
 				
-				if (pthread_create(&sniffer_thread, NULL, connection_handler, (void*)new_sock/*socket*/) < 0)
+				int pcrres=pthread_create(&sniffer_thread, NULL, connection_handler, (void*)new_sock/*socket*/);	
+				
+				if (pcrres != 0)
 				/*
 				struct hathrargs args;
 				args.socket=new_sock;
@@ -389,16 +409,19 @@ int main(int argc, char *argv[])
 				*/
 				//if (pthread_create(&sniffer_thread, NULL, connection_handler, (void*)args) < 0)
 				{//Thread konnte nicht erstellt werden
-					fprintf(stderr,"could not create thread.\n");
-					writelog("Error: could not create thread.\n"); //Logeintrag machen
+					message="Error creating new thread! Returncode: "+std::to_string(pcrres)+"\n";
+			
+					fprintf(stderr,message.c_str());
+					writelog(message.c_str()); //Logeintrag machen
 					return 1;
 				}
 				else {
-					//Thread wurde erstellt
+					//Thread wurde erstellt (Return value is 0)
 					curclicnt+=1;				
 					message="Thread-Handler assigned. "+std::to_string(curclicnt)+" active clients.\n";
 					fprintf(stdout,message.c_str());
 					writelog(message.c_str()); //Logeintrag machen
+					
 					//pthread_join( sniffer_thread , NULL); //Join the thread , so that we dont terminate before the thread
 				}
 				
@@ -634,15 +657,14 @@ void *connection_handler(void *socket_desc)
         writelog(logmsg.c_str()); //make log
     }
          
-    //Free the socket pointer
 	
 	logmsg="Handler for connection-id "+std::to_string(myconnid)+" stopping...\n";
 	writelog(logmsg.c_str());
 	
-	
+	//Free the socket pointer
 	close(sock);
 	//closeSocket(sock);
-    free(socket_desc);	
+    free(socket_desc);
 	
 	curclicnt=curclicnt-1; //reduce active clientconnectioncounter by 1
 	
@@ -650,5 +672,8 @@ void *connection_handler(void *socket_desc)
 	//fprintf(stdout,"%d active clients.\n",curclicnt);
 	fprintf(stdout, clientsmsg.c_str());
 	writelog(clientsmsg.c_str()); //make log
-    return 0;
+	
+	
+    //return 0;
+	pthread_exit(0);
 }
