@@ -44,6 +44,7 @@ int socket_desc, new_socket, c, *new_sock;
 int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
 int threadcount=0; //DEBUG: counter für Threads
 std::string connections[maxclients]; //Array of connectionnames
+pthread_mutex_t conn_mutex; //Mutex for accessing connectionnames
 
 const double myversion=0.32; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
@@ -426,11 +427,17 @@ int main(int argc, char *argv[])
 
 					fprintf(stdout,"%s",message.c_str());
 					writelog(message.c_str()); //Logeintrag machen
+					
+					pthread_mutex_lock(&conn_mutex);
 					connections[curclicnt]=clientconn;
-					curclicnt+=1;
+					pthread_mutex_unlock(&conn_mutex);
+					
+					
 
 					int pcrres=pthread_create(&connthreads[threadcount], NULL, connection_handler, (void*)new_sock/*socket*/); //neuen Thread erzeugen in diesem dem Array hinzufügen um später drauf zu warten....
 
+					
+					
 					if (pcrres != 0)
 					/*
 					struct hathrargs args;
@@ -443,11 +450,13 @@ int main(int argc, char *argv[])
 
 						fprintf(stderr,"%s",message.c_str());
 						writelog(message.c_str()); //Logeintrag machen
-						return 1;
+						//return 1;
 					}
 					else {
 						//Thread wurde erstellt (Return value is 0)
 						pthread_detach(connthreads[threadcount]); //detach the new thread, so that its ressources will be freed when it exits. Prevents memoryleakage
+						
+						curclicnt+=1;
 						
 						threadcount++;
 						message="Thread-Handler assigned. "+std::to_string(curclicnt)+" active clients.\n";
@@ -494,7 +503,7 @@ int main(int argc, char *argv[])
 		{
 			fprintf(stderr,"accept failed.\n");
 			writelog("Error: accept failed.\n"); //Logeintrag machen
-			return 1;
+			gracefulexit(1);
 		}
 		
 		
@@ -591,9 +600,13 @@ void *connection_handler(void *socket_desc)
 	//what happens if connectionstring is not written to array when fetching value?
 	//what happens if curclicnt is already increased when coming to this point?
 
+	pthread_mutex_lock(&conn_mutex);
+					
 	int myconnid=curclicnt; //Diese Vebindungsid
 	std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
-	//std::string clientconn="Foooo"; //DEBUG
+	//std::string clientconn="Foooo"; //DEBUG	
+	
+	pthread_mutex_unlock(&conn_mutex);
 
 	std::string logmsg="Handler for connection-id "+std::to_string(myconnid)+" started...\n";
 	writelog(logmsg.c_str());
