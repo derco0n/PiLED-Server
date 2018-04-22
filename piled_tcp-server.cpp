@@ -24,16 +24,19 @@ https://github.com/derco0n/PiLED-Server
 #include <arpa/inet.h> //inet_addr
 #include <unistd.h> //close()
 #include <sstream>
-#include <pthread.h> //for threading , link with lpthread
+#include <pthread.h> //for threading , link with -lpthread
 #include <ctime>
 #include <time.h>
-//#include <wiringPi.h> //using wiringpi to control raspberry-pi's gpio pins //WIEDER EINKOMMENTIEREN!
+//#include <sys/time.h> // for gettimeofday()
+//#include <wiringPi.h> //using wiringpi to control raspberry-pi's gpio pins link with -lwiringPi //WIEDER EINKOMMENTIEREN!
 
 //Konstanten und Variablen
 int pinred=0;
 int pingreen=0;
 int pinblue=0;
-const int maxclients=200; //Maximale gleichzeitige Clientverbindungen
+const int maxclients=50; //Maximale gleichzeitige Clientverbindungen
+pthread_t connthreads[maxclients]; //Array aller Verbindungsthreads 
+float idletimeout=20.0f; //Maximale Inaktivitätszeit einer Verbindung in Sekunden
 
 bool shuttingdown=false; //Wenn true werden alle offenen Clientverbindungen getrennt
 int socket_desc, new_socket, c, *new_sock;
@@ -42,7 +45,7 @@ int curclicnt=0; //Arrayindex der aktuellen Clientverbindungen
 int threadcount=0; //DEBUG: counter für Threads
 std::string connections[maxclients]; //Array of connectionnames
 
-const double myversion=0.31; //Diese Programmversion
+const double myversion=0.32; //Diese Programmversion
 int listenPort = 0; //Auf welchem Port soll gelauscht werden?
 void *connection_handler(void *);
 int connection_id;
@@ -77,6 +80,7 @@ std::string itos(int n)
 	std::string str = ss.str();
 	return str;
 }
+
 
 
 bool charState (char c){
@@ -197,6 +201,30 @@ void clssrvsock(){
 	}
 }
 
+void gracefulexit(int returncode){
+	std::string message="";
+	//Wait for running threads
+		int rc;
+		void *status;
+		for (int i=0;i < maxclients; i++){
+			if (connthreads[i] ){
+				rc=pthread_join(connthreads[i], &status);
+				if (rc) {
+					message="Unable to join thread # "+std::to_string(i)+". - May be it has already exited...\n";
+
+				}
+				else {
+					message="Joined thread # - waiting for finish..."+std::to_string(i)+".\n";
+				}
+				fprintf(stdout,"%s",message.c_str());
+				writelog(message.c_str()); //Logeintrag machen
+			}
+		}
+	
+	clssrvsock();
+	exit(returncode);
+	}
+
 void signal_handler (int sig)
 {
 	/*
@@ -212,7 +240,7 @@ Macro: int SIGINT
 Macro: int SIGQUIT
     The SIGQUIT signal is similar to SIGINT, except that it’s controlled by a different key—the QUIT character,
 	usually C-\—and produces a core dump when it terminates the process, just like a program error signal.
-	You can think of this as a program error condition “detected” by the user.
+	You can think of this as a program error condition “detected” by the user.maxclients
     See Program Error Signals, for information about core dumps. See Special Characters, for information about terminal driver support.
     Certain kinds of cleanups are best omitted in handling SIGQUIT. For example, if the program creates temporary files, it should handle the other termination requests by deleting the temporary files. But it is better for SIGQUIT not to delete them, so that the user can examine them in conjunction with the core dump.
 	*/
@@ -221,8 +249,9 @@ Macro: int SIGQUIT
 	fprintf(stdout,"\nAbbruchsignal (z.B. STRG+C) empfangen. Beende Server...\n");
 	writelog("Abbruchsignal (z.B. STRG+C) empfangen. Beende Server...\n"); //Logeintrag machen
 	shuttingdown=true; //Abbruchsignal setzen
-	clssrvsock();
-	exit(-9);
+	//clssrvsock();
+	//exit(-9);
+	gracefulexit(-9);
   }
 }
 
@@ -322,7 +351,7 @@ int main(int argc, char *argv[])
 		ss.str() +
 		std::string("\n");//+listenPort;
 
-		fprintf(stdout,msg.c_str());
+		fprintf(stdout,"%s",msg.c_str());
 		writelog(msg.c_str()); //Logeintrag machen
 
 		//Create socket
@@ -363,83 +392,83 @@ int main(int argc, char *argv[])
 
 			std::string message="";
 
-			pthread_t sniffer_thread; //neuen Thread deklarieren
+			//pthread_t sniffer_thread; //neuen Thread deklarieren
 			new_sock = (int*)malloc(sizeof(new_socket));
 			*new_sock = new_socket;
 
 			if (!new_sock){
 				//Kein Speicher addressiert
 				message = "Memory for new Connection could not be allocated!\n";
-				fprintf(stdout,message.c_str());
+				fprintf(stdout,"%s",message.c_str());
 				writelog(message.c_str()); //Logeintrag machen
 				break; //Schleife abbrechen
 			}
 
-
-
 			conatmpt++;
+			
+				if (curclicnt<maxclients){
+					//Reply to the client
+					//message = "Hello Client , I have received your connection.\n";
+					//write(new_socket , message.c_str() ,  strlen(message.c_str()));
 
-			if (curclicnt<maxclients){
-				//Reply to the client
-				//message = "Hello Client , I have received your connection.\n";
-				//write(new_socket , message.c_str() ,  strlen(message.c_str()));
+						std::string clientip=inet_ntoa(client.sin_addr);
+						int clientport=(int)ntohs(client.sin_port);
+						std::string clientconn=clientip+":"+std::to_string(clientport);
+						message ="New Connection from "+clientconn+" accepted.\n";
+						
 
-				std::string clientip=inet_ntoa(client.sin_addr);
-				int clientport=(int)ntohs(client.sin_port);
-				std::string clientconn=clientip+":"+std::to_string(clientport);
-				message ="New Connection from "+clientconn+" accepted.\n";
+					message +="DEBUG: "+std::to_string(conatmpt)+" attempts.\n";
 
-				message +="DEBUG: "+std::to_string(conatmpt)+" attempts.\n";
+					//DEBUG
+					//fprintf(stdout, "1) Curclicnt: %d\n",curclicnt);
+					//fprintf(stdout, "1) con_content at index %d: %s\n",curclicnt, connections[curclicnt].c_str());
+					//DEBUG ENDE
 
-				//DEBUG
-				//fprintf(stdout, "1) Curclicnt: %d\n",curclicnt);
-				//fprintf(stdout, "1) con_content at index %d: %s\n",curclicnt, connections[curclicnt].c_str());
-				//DEBUG ENDE
-
-				fprintf(stdout,message.c_str());
-				writelog(message.c_str()); //Logeintrag machen
-				connections[curclicnt]=clientconn;
-				curclicnt+=1;
-
-				int pcrres=pthread_create(&sniffer_thread, NULL, connection_handler, (void*)new_sock/*socket*/);
-
-				if (pcrres != 0)
-				/*
-				struct hathrargs args;
-				args.socket=new_sock;
-				args.connid=curclicnt;
-				*/
-				//if (pthread_create(&sniffer_thread, NULL, connection_handler, (void*)args) < 0)
-				{//Thread konnte nicht erstellt werden
-					message="Error creating new thread! Returncode: "+std::to_string(pcrres)+"\n";
-
-					fprintf(stderr,message.c_str());
+					fprintf(stdout,"%s",message.c_str());
 					writelog(message.c_str()); //Logeintrag machen
-					return 1;
+					connections[curclicnt]=clientconn;
+					curclicnt+=1;
+
+					int pcrres=pthread_create(&connthreads[threadcount], NULL, connection_handler, (void*)new_sock/*socket*/); //neuen Thread erzeugen in diesem dem Array hinzufügen um später drauf zu warten....
+
+					if (pcrres != 0)
+					/*
+					struct hathrargs args;
+					args.socket=new_sock;
+					args.connid=curclicnt;
+					*/
+					//if (pthread_create(&sniffer_thread, NULL, connection_handler, (void*)args) < 0)
+					{//Thread konnte nicht erstellt werden
+						message="Error creating new thread! Returncode: "+std::to_string(pcrres)+"\n";
+
+						fprintf(stderr,"%s",message.c_str());
+						writelog(message.c_str()); //Logeintrag machen
+						return 1;
+					}
+					else {
+						//Thread wurde erstellt (Return value is 0)
+						pthread_detach(connthreads[threadcount]); //detach the new thread, so that its ressources will be freed when it exits. Prevents memoryleakage
+						
+						threadcount++;
+						message="Thread-Handler assigned. "+std::to_string(curclicnt)+" active clients.\n";
+						fprintf(stdout,"%s",message.c_str());
+						writelog(message.c_str()); //Logeintrag machen
+
+						//pthread_join(sniffer_thread , NULL);						
+					}
+
 				}
 				else {
-					//Thread wurde erstellt (Return value is 0)
-                    threadcount++;
-					message="Thread-Handler assigned. "+std::to_string(curclicnt)+" active clients.\n";
-					fprintf(stdout,message.c_str());
-					writelog(message.c_str()); //Logeintrag machen
-
-					//Join the thread , so that we dont terminate before the thread and prevent memory-leak...
-					//BAD NEWS IS. this will prevent us from handling multiple clients at the same time. Must invent somting for this...
-					pthread_join(sniffer_thread , NULL);
+					//Maxclients erreicht
+					//Reply to the client
+					message = "good bye\n";
+					write(new_socket , message.c_str() ,  strlen(message.c_str()));
+					fprintf(stderr, "Max. clients reached. - connection aborted.\n");
+					writelog("Max. clients reached. - connection aborted.\n"); //Logeintrag machen
+					//close(new_socket);
+					closeSocket(new_socket);
 				}
-
-			}
-			else {
-				//Maxclients erreicht
-				//Reply to the client
-				message = "good bye\n";
-				write(new_socket , message.c_str() ,  strlen(message.c_str()));
-				fprintf(stderr, "Max. clients reached. - connection aborted.\n");
-				writelog("Max. clients reached. - connection aborted.\n"); //Logeintrag machen
-				//close(new_socket);
-				closeSocket(new_socket);
-			}
+			
 			/*
 			//DEBUG
 			std::string debug="Debug-Main: Shuttingdown="+BoolToString(shuttingdown)+"\n";
@@ -453,6 +482,13 @@ int main(int argc, char *argv[])
 				break; //Schleife abbrechen.
 			}
 		}
+		
+		message="Program aborted...\n";
+		fprintf(stdout,"%s",message.c_str());
+		writelog(message.c_str()); //Logeintrag machen
+		
+		
+		
 
 		if (new_socket < 0)
 		{
@@ -460,6 +496,8 @@ int main(int argc, char *argv[])
 			writelog("Error: accept failed.\n"); //Logeintrag machen
 			return 1;
 		}
+		
+		
 
 		/*
 		//Disable remaining LEDs
@@ -470,7 +508,7 @@ int main(int argc, char *argv[])
 		digitalWrite (pinblue, false);
 		*/
 
-		return 0;
+		gracefulexit(0);
 	} //<= comment in, if root is needed
 }
 
@@ -496,7 +534,7 @@ int doStuff(char code[1024], std::string clientconn)
 
 		//msg += "Received new LED settings from connection "+std::to_string(connid)+". Code: \"" + std::string(code).substr(0,3) + std::string("\"\n");
 		msg += "Received new LED settings from "+clientconn+" -> Code: \"" + std::string(code).substr(0,3) + std::string("\"\n");
-		fprintf(stdout,msg.c_str());
+		fprintf(stdout,"%s",msg.c_str());
 		writelog(msg.c_str());
 
 		//delay(30); //30ms warten um das Schaltvermögen der Relais nicht auszureizen
@@ -522,7 +560,7 @@ int doStuff(char code[1024], std::string clientconn)
 	}
 	else {
 		msg += "Received unknown command from "+clientconn+" -> Command: \"" + std::string(code) + std::string("\"\n");
-		fprintf(stdout,msg.c_str());
+		fprintf(stdout,"%s",msg.c_str());
 		writelog(msg.c_str());
 		//return is still -1;
 	}
@@ -554,8 +592,8 @@ void *connection_handler(void *socket_desc)
 	//what happens if curclicnt is already increased when coming to this point?
 
 	int myconnid=curclicnt; //Diese Vebindungsid
-	//std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
-	std::string clientconn="Foooo"; //DEBUG
+	std::string clientconn=connections[myconnid]; //Gegenstelle dieser Verbindung
+	//std::string clientconn="Foooo"; //DEBUG
 
 	std::string logmsg="Handler for connection-id "+std::to_string(myconnid)+" started...\n";
 	writelog(logmsg.c_str());
@@ -595,7 +633,10 @@ void *connection_handler(void *socket_desc)
 	std::string clientconn=cip+":"+std::to_string(cport);
 	*/
 
-	while(shuttingdown==false && (read_size = recv(sock , client_message , 1024 , 0)) > 0 ) //Solange größer 0, besteht die Verbindung zum Client
+	while(
+		shuttingdown==false && /*Wird aktuell nicht heruntergefahren*/
+		(read_size = recv(sock , client_message , 1024 , 0 )) > 0 /*Solange größer 0, besteht die Verbindung zum Client*/
+	) 
     {
 		/*
 		//DEBUG
@@ -606,6 +647,7 @@ void *connection_handler(void *socket_desc)
 		//Print out the recieved message
 		//fprintf(stdout, client_message);
 		//int retval=doStuff(client_message, connid);
+		
 
 		int retval=doStuff(client_message, clientconn);
 		if (retval==0){
@@ -639,25 +681,27 @@ void *connection_handler(void *socket_desc)
 			//Close connection
 			shutdown(sock, SHUT_RDWR);
 			std::string logmsg ="connection ("+clientconn+") closed by server.\n";
-			fprintf(stdout,logmsg.c_str());
+			fprintf(stdout,"%s",logmsg.c_str());
 			writelog(logmsg.c_str()); //make logentry
-			//delay(100); //wait 100ms
-			usleep(100);
+			
+			usleep(50);
 			break; //Aborts the while...
 		}
+				
+		
     }
 
     if(read_size == 0)//Client closed connection
     {
 		std::string logmsg ="connection ("+clientconn+") closed by client.\n";
-		fprintf(stdout,logmsg.c_str());
+		fprintf(stdout,"%s",logmsg.c_str());
         writelog(logmsg.c_str()); //make log
         //fflush(stdout);
     }
     else if(read_size == -1) //connection was aborted by network
     {
         std::string logmsg ="connection ("+clientconn+") aborted.\n";
-		fprintf(stdout,logmsg.c_str());
+		fprintf(stdout,"%s",logmsg.c_str());
         writelog(logmsg.c_str()); //make log
     }
 
@@ -665,7 +709,7 @@ void *connection_handler(void *socket_desc)
 	logmsg="Handler for connection-id "+std::to_string(myconnid)+" stopping...\n";
 	writelog(logmsg.c_str());
 
-	//Free the socket pointer
+	//Free the client-socket pointer
 	close(sock);
 	//closeSocket(sock);
     free(socket_desc);
@@ -674,11 +718,11 @@ void *connection_handler(void *socket_desc)
 
 	std::string clientsmsg=std::to_string(curclicnt)+" active clients.\n";
 	//fprintf(stdout,"%d active clients.\n",curclicnt);
-	fprintf(stdout, clientsmsg.c_str());
+	fprintf(stdout,"%s",clientsmsg.c_str());
 	writelog(clientsmsg.c_str()); //make log
 
     threadcount--;
-    //return 0;
+	
 	pthread_exit(0);
 }
 
