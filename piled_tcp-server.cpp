@@ -28,7 +28,7 @@ https://github.com/derco0n/PiLED-Server
 #include <ctime>
 #include <time.h>
 //#include <sys/time.h> // for gettimeofday()
-//#include <wiringPi.h> //using wiringpi to control raspberry-pi's gpio pins link with -lwiringPi //WIEDER EINKOMMENTIEREN!
+#include <wiringPi.h> //using wiringpi to control raspberry-pi's gpio pins link with -lwiringPi //WIEDER EINKOMMENTIEREN!
 
 //Konstanten und Variablen
 int pinred=0;
@@ -314,32 +314,32 @@ int main(int argc, char *argv[])
 		std::string message;
 
 		//GPIO-Pins initialisieren
-		//wiringPiSetup (); //WIEDER EINKOMMENTIEREN!
-		//pinMode (pinred, OUTPUT) ; //WIEDER EINKOMMENTIEREN!
-		//pinMode (pingreen, OUTPUT) ; //WIEDER EINKOMMENTIEREN!
-		//pinMode (pinblue, OUTPUT) ;//WIEDER EINKOMMENTIEREN!
+		wiringPiSetup (); //WIEDER EINKOMMENTIEREN!
+		pinMode (pinred, OUTPUT) ; //WIEDER EINKOMMENTIEREN!
+		pinMode (pingreen, OUTPUT) ; //WIEDER EINKOMMENTIEREN!
+		pinMode (pinblue, OUTPUT) ;//WIEDER EINKOMMENTIEREN!
 
 		//Pins testen
 		fprintf(stdout,"Testing Pin for RED (%i):\n",pinred);
-		//digitalWrite (pinred, true); //WIEDER EINKOMMENTIEREN!
+		digitalWrite (pinred, true); //WIEDER EINKOMMENTIEREN!
 		//delay (200) ;
 		usleep(200) ;
 		fprintf(stdout,"Testing Pin for GREEN (%i):\n",pingreen);
-		//digitalWrite (pingreen, true); //WIEDER EINKOMMENTIEREN!
+		digitalWrite (pingreen, true); //WIEDER EINKOMMENTIEREN!
 		//delay (200) ;
 		usleep(200) ;
 		fprintf(stdout,"Testing Pin for BLUE (%i):\n",pinblue);
-		//digitalWrite (pinblue, true); //WIEDER EINKOMMENTIEREN!
+		digitalWrite (pinblue, true); //WIEDER EINKOMMENTIEREN!
 		//delay (1200);
 		usleep(1200);
 
 		//digitalWrite (pinred, false);	//WIEDER EINKOMMENTIEREN!
 		//delay (200)
 		usleep(200);
-		//digitalWrite (pingreen, false);	//WIEDER EINKOMMENTIEREN!
+		digitalWrite (pingreen, false);	//WIEDER EINKOMMENTIEREN!
 		//delay (200);
 		usleep(200);
-		//digitalWrite (pinblue, false); //WIEDER EINKOMMENTIEREN!
+		digitalWrite (pinblue, false); //WIEDER EINKOMMENTIEREN!
 
 		std::string startmsg="Program started. Version is "+std::to_string(myversion)+"\n";
 		writelog(startmsg.c_str()); //Logeintrag machen
@@ -549,9 +549,9 @@ int doStuff(char code[1024], std::string clientconn)
 		//delay(30); //30ms warten um das Schaltvermögen der Relais nicht auszureizen
 		usleep(30);
 		//LEDs setzen
-		//digitalWrite (pinred, redstate);//WIEDER EINKOMMENTIEREN!
-		//digitalWrite (pingreen, greenstate);//WIEDER EINKOMMENTIEREN!
-		//digitalWrite (pinblue, bluestate);	//WIEDER EINKOMMENTIEREN!
+		digitalWrite (pinred, redstate);//WIEDER EINKOMMENTIEREN!
+		digitalWrite (pingreen, greenstate);//WIEDER EINKOMMENTIEREN!
+		digitalWrite (pinblue, bluestate);	//WIEDER EINKOMMENTIEREN!
 
 		status = 0; //exitcode
 		}
@@ -579,10 +579,10 @@ int doStuff(char code[1024], std::string clientconn)
 
 void lightUpPin(int pinnumber, int period){
 	//Setzt den Status eines pins fuer einen gewissen Zeitraum auf 1 und anschließend wieder auf null
-	//digitalWrite (pinnumber, true); //WIEDER EINKOMMENTIEREN!
+	digitalWrite (pinnumber, true); //WIEDER EINKOMMENTIEREN!
 	//delay(period);
 	usleep(period);
-	//digitalWrite (pinnumber, false);//WIEDER EINKOMMENTIEREN!
+	digitalWrite (pinnumber, false);//WIEDER EINKOMMENTIEREN!
 }
 
 
